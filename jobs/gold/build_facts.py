@@ -99,6 +99,7 @@ def build_fact_transaction(spark: SparkSession) -> str:
 
     df = df.select(
         "transaction_id",
+        "account_id",           # kept for ML join (label → feature tables)
         "account_key",
         "merchant_key",
         "date_key",
@@ -112,6 +113,7 @@ def build_fact_transaction(spark: SparkSession) -> str:
         "city",
         "device_id",
         "ip_address",
+        F.col("is_fraudulent").cast("int"),  # fraud label propagated from generator
     )
     df = _gold_metadata(df)
 

@@ -43,12 +43,16 @@ EXPECTED_TABLES = {
         "dim_account":                ["account_key",  "account_id"],
         "dim_merchant":               ["merchant_key", "merchant_id"],
         "dim_date":                   ["date_key",     "calendar_date"],
-        "fact_transaction":           ["transaction_id", "account_key", "merchant_key", "date_key"],
+        "fact_transaction":           ["transaction_id", "account_key", "merchant_key", "date_key", "is_fraudulent"],
         "fact_auth_attempt":          ["event_id",     "account_key"],
         "obt_transaction_fraud_view": ["transaction_id", "is_flagged_fraud"],
         "feat_account_90d":           ["account_id",   "f_account_total_tx_90d"],
         "feat_stream_60m":            ["account_id",   "f_stream_tx_velocity_60m"],
         "feat_account_unified":       ["account_id",   "f_account_total_tx_90d", "f_stream_tx_velocity_60m"],
+        # ML monitoring & training tables
+        "agg_feature_health_daily":      ["metric_date", "feature_name", "psi", "is_alert"],
+        "ml_transaction_label":          ["transaction_id", "account_id", "event_timestamp", "label"],
+        "ml_fraud_detection_training":   ["transaction_id", "account_id", "label", "f_account_total_tx_90d"],
     },
 }
 
@@ -126,6 +130,31 @@ def verify(spark) -> bool:
                 "f_account_avg_tx_value_90d",
                 "f_stream_tx_velocity_60m",
                 "f_stream_login_failures_30m",
+            )
+            .show(5, truncate=False)
+        )
+
+    # 6. ML tables spot-check
+    health_path = os.path.join(BASE_DIR, "data", "gold", "agg_feature_health_daily")
+    if DeltaTable.isDeltaTable(spark, health_path):
+        print("\n── Feature Health Alerts (PSI > 0.15) ───────────────────────────────")
+        (
+            spark.read.format("delta").load(health_path)
+            .filter("is_alert = true")
+            .orderBy("feature_name", "metric_date")
+            .select("metric_date", "feature_name", "psi", "is_alert")
+            .show(10, truncate=False)
+        )
+
+    training_path = os.path.join(BASE_DIR, "data", "gold", "ml_fraud_detection_training")
+    if DeltaTable.isDeltaTable(spark, training_path):
+        print("\n── ML Training Dataset Sample (fraud rows) ──────────────────────────")
+        (
+            spark.read.format("delta").load(training_path)
+            .filter("label = 1")
+            .select(
+                "transaction_id", "account_id", "label",
+                "f_account_total_tx_90d", "f_account_avg_tx_value_90d",
             )
             .show(5, truncate=False)
         )

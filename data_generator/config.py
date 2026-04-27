@@ -1,5 +1,9 @@
 """
 Configuration and constants for the Finance Data Generator.
+
+Drift simulation is controlled by DRIFT_START_DATE and the
+SCENARIO_A / SCENARIO_B knobs below. Affected accounts produce
+transactions that are flagged is_fraudulent = 1.
 """
 from datetime import datetime, timedelta
 
@@ -20,6 +24,32 @@ HISTORY_END   = datetime(2024, 12, 31, 23, 59, 59)
 # Cutoff: transactions BEFORE this date are "old partitions"
 # → missing device_id and ip_address (schema evolution)
 SCHEMA_EVOLUTION_CUTOFF = HISTORY_START + (HISTORY_END - HISTORY_START) * 0.6
+
+# ──────────────────────────────────────────────
+# Feature Drift Simulation
+# ──────────────────────────────────────────────
+# Date after which drift accounts start behaving anomalously
+DRIFT_START_DATE = datetime(2024, 11, 1)
+
+# ── Scenario A: Transaction Frequency Drift (Carding Attack) ──
+# Fraction of accounts that suddenly increase transaction frequency
+SCENARIO_A_ACCOUNT_RATIO   = 0.05        # 5% of accounts
+# Normal baseline: ~1.2 tx/account/day → drifted: ~5.5 tx/account/day
+SCENARIO_A_BASELINE_TX_PER_DAY = 1.2
+SCENARIO_A_DRIFTED_TX_PER_DAY  = 5.5
+# PSI alert threshold for f_account_total_tx_90d
+SCENARIO_A_PSI_THRESHOLD = 0.1
+
+# ── Scenario B: Average Transaction Value Drift (High-ticket Fraud) ──
+# Fraction of accounts with inflated transaction amounts
+SCENARIO_B_ACCOUNT_RATIO = 0.05          # 5% of accounts
+# Amount multiplier applied to post-drift transactions (~$45 → ~$180)
+SCENARIO_B_AMOUNT_MULTIPLIER = 4.0
+# PSI alert threshold for f_account_avg_tx_value_90d
+SCENARIO_B_PSI_THRESHOLD = 0.1
+
+# Global PSI alert threshold for agg_feature_health_daily
+FEATURE_HEALTH_PSI_ALERT = 0.15
 
 # ──────────────────────────────────────────────
 # Offline data-quality knobs
