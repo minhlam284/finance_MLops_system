@@ -1,0 +1,191 @@
+# .github/workflows/ml_pipeline.yml
+#
+# CI/CD – Finance ML Pipeline
+#
+# Track A: CI for ML code (lint + unit tests + DAG validation)
+# Track B: Smoke-test model training with tiny synthetic data
+#
+# Triggers:
+#   - Push / PR to main / develop on paths: jobs/ml/**, jobs/serving/**, dags/**
+#   - Manual dispatch (workflow_dispatch)
+
+name: ML Pipeline CI
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - "jobs/ml/**"
+      - "jobs/serving/**"
+      - "jobs/features/**"
+      - "dags/**"
+      - "pyproject.toml"
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - "jobs/ml/**"
+      - "jobs/serving/**"
+      - "jobs/features/**"
+      - "dags/**"
+      - "pyproject.toml"
+  workflow_dispatch:
+
+env:
+  JAVA_VERSION: "17"
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  # ── Track A-1: Lint & static analysis ───────────────────────────────────────
+  lint:
+    name: "Lint (ruff)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install ruff
+        run: pip install ruff
+
+      - name: Lint ML jobs
+        run: |
+          ruff check jobs/ml/ jobs/serving/ jobs/features/ dags/ \
+            --select E,W,F,I \
+            --ignore E501
+
+  # ── Track A-2: DAG validation ────────────────────────────────────────────────
+  dag-validation:
+    name: "Airflow DAG validation"
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Airflow (no extras needed for import check)
+        run: |
+          pip install "apache-airflow>=2.8.0" --constraint \
+            "https://raw.githubusercontent.com/apache/airflow/constraints-2.8.4/constraints-3.11.txt"
+
+      - name: Check DAG imports
+        run: |
+          python -c "import dags.finance_lakehouse_dag; print('finance_lakehouse_dag: OK')"
+          python -c "import dags.finance_ml_training_dag; print('finance_ml_training_dag: OK')"
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+
+  # ── Track A-3: Unit tests ────────────────────────────────────────────────────
+  unit-tests:
+    name: "Unit tests (pytest)"
+    runs-on: ubuntu-latest
+    needs: lint
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java (required by PySpark)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install project dependencies
+        run: uv pip install -e ".[dev]" --system
+
+      - name: Run unit tests
+        run: pytest tests/ -v --timeout=120
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+          JAVA_HOME: ${{ env.JAVA_HOME }}
+
+  # ── Track B: Smoke-test training (tiny data) ─────────────────────────────────
+  smoke-train:
+    name: "Smoke-test: train_job (synthetic data)"
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install project dependencies
+        run: uv pip install -e ".[dev]" --system
+
+      - name: Generate synthetic data
+        run: python main.py
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+
+      - name: Run full lakehouse pipeline (Bronze → Gold → Features → ML tables)
+        run: |
+          python -c "
+          from jobs.utils.spark import get_spark
+          from jobs.bronze.ingest_offline   import run as bronze_offline
+          from jobs.bronze.ingest_streaming import run as bronze_streaming
+          from jobs.silver.process_dimensions import run as silver_dims
+          from jobs.silver.process_facts      import run as silver_facts
+          from jobs.gold.build_dimensions     import run as gold_dims
+          from jobs.gold.build_facts          import run as gold_facts
+          from jobs.gold.build_obt            import run as gold_obt
+          from jobs.features.build_features   import run as build_features
+          from jobs.gold.build_ml_tables      import run as build_ml
+          spark = get_spark('ci_smoke')
+          bronze_offline(spark); bronze_streaming(spark)
+          silver_dims(spark); silver_facts(spark)
+          gold_dims(spark); gold_facts(spark); gold_obt(spark)
+          build_features(spark); build_ml(spark)
+          spark.stop()
+          print('Pipeline complete.')
+          "
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+
+      - name: Smoke-test train_job.py
+        run: python -m jobs.ml.train_job
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+
+      - name: Verify MLflow run created
+        run: |
+          python -c "
+          import mlflow, os
+          mlflow.set_tracking_uri('file://' + os.path.join(os.getcwd(), 'mlruns'))
+          mlflow.set_experiment('fraud_detection')
+          runs = mlflow.search_runs(order_by=['attribute.start_time DESC'], max_results=1)
+          assert len(runs) > 0, 'No MLflow run found!'
+          pr_auc = runs.iloc[0]['metrics.val_pr_auc']
+          print(f'Latest run PR-AUC: {pr_auc:.4f}')
+          assert pr_auc >= 0, 'PR-AUC should be non-negative'
+          print('Smoke test PASSED.')
+          "
+        env:
+          PYTHONPATH: ${{ github.workspace }}
