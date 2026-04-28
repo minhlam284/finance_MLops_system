@@ -40,9 +40,9 @@ from datetime import datetime, timezone
 import mlflow
 import mlflow.xgboost
 import numpy as np
-from pyspark.sql import SparkSession, DataFrame
+from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
-from pyspark.sql.types import DoubleType, StringType, StructField, StructType
+from pyspark.sql.types import DoubleType
 
 from jobs.utils.spark import get_spark
 
@@ -108,8 +108,8 @@ def _make_score_udf(model, model_version: str):
     Spark Pandas UDFs operate on pd.Series objects, so we receive
     one Series per feature column and return a Series of fraud scores.
     """
-    from pyspark.sql.functions import pandas_udf
     import pandas as pd
+    from pyspark.sql.functions import pandas_udf
 
     # Capture model reference in closure (broadcast-safe for local mode)
     _model = model

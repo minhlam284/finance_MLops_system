@@ -29,7 +29,7 @@ Requirements:
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from airflow import DAG
 from airflow.operators.python import PythonOperator
@@ -60,7 +60,8 @@ with DAG(
     # ── Step 0: Generate raw data (optional, for dev/testing) ─────────────────
     def _generate_data(**ctx):
         """Re-generate source data if not yet present."""
-        import os, sys
+        import os
+        import sys
         project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         sys.path.insert(0, project_root)
 
@@ -80,7 +81,8 @@ with DAG(
 
     # ── Step 1a: Bronze – Offline ─────────────────────────────────────────────
     def _bronze_offline(**ctx):
-        import sys, os
+        import os
+        import sys
         sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         from jobs.bronze.ingest_offline import run
         from jobs.utils.spark import get_spark
@@ -99,7 +101,8 @@ with DAG(
 
     # ── Step 1b: Bronze – Streaming ───────────────────────────────────────────
     def _bronze_streaming(**ctx):
-        import sys, os
+        import os
+        import sys
         sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         from jobs.bronze.ingest_streaming import run
         from jobs.utils.spark import get_spark
@@ -118,7 +121,8 @@ with DAG(
 
     # ── Step 2a: Silver – Dimensions ──────────────────────────────────────────
     def _silver_dims(**ctx):
-        import sys, os
+        import os
+        import sys
         sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         from jobs.silver.process_dimensions import run
         from jobs.utils.spark import get_spark
@@ -137,7 +141,8 @@ with DAG(
 
     # ── Step 2b: Silver – Facts ───────────────────────────────────────────────
     def _silver_facts(**ctx):
-        import sys, os
+        import os
+        import sys
         sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         from jobs.silver.process_facts import run
         from jobs.utils.spark import get_spark
@@ -156,7 +161,8 @@ with DAG(
 
     # ── Step 3: Gold – Dimensions ─────────────────────────────────────────────
     def _gold_dims(**ctx):
-        import sys, os
+        import os
+        import sys
         sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         from jobs.gold.build_dimensions import run
         from jobs.utils.spark import get_spark
@@ -175,7 +181,8 @@ with DAG(
 
     # ── Step 4: Gold – Facts ──────────────────────────────────────────────────
     def _gold_facts(**ctx):
-        import sys, os
+        import os
+        import sys
         sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         from jobs.gold.build_facts import run
         from jobs.utils.spark import get_spark
@@ -194,7 +201,8 @@ with DAG(
 
     # ── Step 5: Gold – OBT ───────────────────────────────────────────────────
     def _gold_obt(**ctx):
-        import sys, os
+        import os
+        import sys
         sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         from jobs.gold.build_obt import run
         from jobs.utils.spark import get_spark
@@ -213,7 +221,8 @@ with DAG(
 
     # ── Step 6: Feature Store ─────────────────────────────────────────────────
     def _build_features(**ctx):
-        import sys, os
+        import os
+        import sys
         sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         from jobs.features.build_features import run
         from jobs.utils.spark import get_spark

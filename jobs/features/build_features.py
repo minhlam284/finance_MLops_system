@@ -30,10 +30,9 @@ import logging
 import os
 from datetime import datetime, timezone
 
-from pyspark.sql import SparkSession, DataFrame
-from pyspark.sql import functions as F
-from pyspark.sql.window import Window
 from delta.tables import DeltaTable  # type: ignore
+from pyspark.sql import DataFrame, SparkSession
+from pyspark.sql import functions as F
 
 from jobs.utils.spark import get_spark
 
