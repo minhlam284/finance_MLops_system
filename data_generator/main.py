@@ -5,6 +5,8 @@ Usage:
     python -m data_generator.main
     python -m data_generator.main --offline-only
     python -m data_generator.main --streaming-only
+    python -m data_generator.main --report           # generate data + print quality report
+    python -m data_generator.main --report-only      # print quality report on existing output
 """
 import argparse
 import logging
@@ -36,38 +38,64 @@ def _print_summary(offline_paths: dict, stream_path: str | None) -> None:
         print("\n  📦  Offline (Parquet)")
         for table, path in offline_paths.items():
             df = pd.read_parquet(path)
-            print(f"      {table:<16}  {len(df):>8,} rows  →  {path}")
+            print(f"      {table:<22}  {len(df):>10,} rows  →  {path}")
 
     if stream_path:
         with open(stream_path, "r", encoding="utf-8") as fh:
             n_events = sum(1 for _ in fh)
         print(f"\n  📡  Streaming (JSONL)")
-        print(f"      events_stream    {n_events:>8,} events →  {stream_path}")
+        print(f"      events_stream    {n_events:>10,} events →  {stream_path}")
 
     print(f"\n{separator}\n")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Finance Data Generator")
-    group = parser.add_mutually_exclusive_group()
-    group.add_argument("--offline-only",   action="store_true",
-                       help="Generate only the offline Parquet tables.")
-    group.add_argument("--streaming-only", action="store_true",
-                       help="Generate only the streaming event stream.")
+    mode_group = parser.add_mutually_exclusive_group()
+    mode_group.add_argument(
+        "--offline-only", action="store_true",
+        help="Generate only the offline Parquet tables.",
+    )
+    mode_group.add_argument(
+        "--streaming-only", action="store_true",
+        help="Generate only the streaming event stream.",
+    )
+    mode_group.add_argument(
+        "--report-only", action="store_true",
+        help="Run the quality report on existing output without regenerating data.",
+    )
+    parser.add_argument(
+        "--report", action="store_true",
+        help="After generating data, run and print the data quality report.",
+    )
     args = parser.parse_args()
 
     _setup_logging()
     log = logging.getLogger(__name__)
     t0 = time.perf_counter()
 
-    offline_paths: dict = {}
-    stream_path:   str | None = None
+    offline_paths: dict  = {}
+    stream_path: str | None = None
 
-    # ── Offline ──────────────────────────────────────────
+    # ── Report-only mode (no data generation) ───────────────────────────────
+    if args.report_only:
+        from data_generator import config, quality_report
+        offline_paths = {
+            tbl: f"{config.OFFLINE_OUTPUT_DIR}/{tbl}.parquet"
+            for tbl in (
+                "customers", "accounts", "merchants",
+                "transactions", "transaction_details",
+            )
+        }
+        stream_path = f"{config.STREAMING_OUTPUT_DIR}/events_stream.jsonl"
+        quality_report.run(offline_paths, stream_path)
+        return
+
+    # ── Offline ─────────────────────────────────────────────────────────────
     if not args.streaming_only:
         offline_paths = offline_generator.run()
 
-    # ── Streaming ────────────────────────────────────────
+    # ── Streaming ───────────────────────────────────────────────────────────
     if not args.offline_only:
         # Reuse account IDs from the offline dataset when available,
         # otherwise generate placeholder IDs.
@@ -83,6 +111,11 @@ def main() -> None:
     elapsed = time.perf_counter() - t0
     log.info("All done in %.1f s", elapsed)
     _print_summary(offline_paths, stream_path)
+
+    # ── Optional quality report ──────────────────────────────────────────────
+    if args.report:
+        from data_generator import quality_report
+        quality_report.run(offline_paths, stream_path)
 
 
 if __name__ == "__main__":

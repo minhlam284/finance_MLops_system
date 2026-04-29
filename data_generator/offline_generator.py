@@ -1,6 +1,6 @@
 """
-Offline data generator – creates Parquet files for all four tables:
-  customers, accounts, merchants, transactions
+Offline data generator – creates Parquet files for all five tables:
+  customers, accounts, merchants, transactions, transaction_details
 with intentional data-quality challenges.
 """
 import os
@@ -250,6 +250,77 @@ def generate_transactions(accounts_df: pd.DataFrame,
 
 
 
+def generate_transaction_details(transactions_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Generate the `transaction_details` table.
+
+    Produces 1-5 line items per transaction. Each detail row records a
+    quantity, unit_amount, and fee_amount such that the weighted sum
+    approximates the parent transaction amount (exact equality is not
+    enforced – real-world data rarely balances perfectly).
+
+    Fields
+    ------
+    detail_id        : UUID primary key
+    transaction_id   : FK → transactions.transaction_id
+    merchant_id      : denormalized from parent transaction
+    quantity         : int 1-5 units purchased
+    unit_amount      : float, per-unit price
+    fee_amount       : float, per-line fee (e.g. processing fee)
+    """
+    log.info("Generating transaction_details for %d transactions …", len(transactions_df))
+    rows = []
+    for _, tx in transactions_df.iterrows():
+        n_details = random.randint(1, 5)
+        # Allocate a fraction of the transaction amount across line items
+        remaining = tx["amount"]
+        for i in range(n_details):
+            quantity = random.randint(1, 5)
+            # Give the last detail the residual amount to keep totals plausible
+            if i == n_details - 1:
+                unit_amount = round(max(0.01, remaining / max(1, quantity)), 2)
+            else:
+                # Random share of the remaining budget
+                share = random.uniform(0.1, 0.6)
+                unit_amount = round(max(0.01, remaining * share / max(1, quantity)), 2)
+                remaining -= unit_amount * quantity
+                remaining = max(0.01, remaining)
+
+            fee_amount = round(random.uniform(0.01, 5.00), 2)
+
+            rows.append({
+                "detail_id":       new_uuid(),
+                "transaction_id": tx["transaction_id"],
+                "merchant_id":    tx["merchant_id"],
+                "quantity":       quantity,
+                "unit_amount":    unit_amount,
+                "fee_amount":     fee_amount,
+            })
+
+    df = pd.DataFrame(rows)
+    
+    # ── Duplicates ────────────────────────────────────────
+    n_dupes = int(len(df) * config.DUPLICATE_RATE)
+    if n_dupes > 0:
+        log.info("Injecting %d duplicate transaction_details (%.0f%%) …",
+                 n_dupes, config.DUPLICATE_RATE * 100)
+        dupes = df.sample(n=n_dupes, replace=True, random_state=2)
+        df = pd.concat([df, dupes], ignore_index=True)
+
+    log.info("transaction_details complete — %d rows", len(df))
+    return df
+
+def generate_transaction_status() -> pd.DataFrame:
+    """Generate the static `transaction_status` lookup table."""
+    log.info("Generating transaction_status …")
+    rows = [
+        {"status_id": "approved", "status_name": "approved"},
+        {"status_id": "declined", "status_name": "declined"},
+        {"status_id": "pending",  "status_name": "pending"},
+    ]
+    return pd.DataFrame(rows)
+
+
 # ──────────────────────────────────────────────
 # Save helpers
 # ──────────────────────────────────────────────
@@ -272,11 +343,15 @@ def run() -> dict:
     accounts_df     = generate_accounts(customers_df)
     merchants_df    = generate_merchants()
     transactions_df = generate_transactions(accounts_df, merchants_df)
+    details_df      = generate_transaction_details(transactions_df)
+    status_df       = generate_transaction_status()
 
     paths = {}
-    paths["customers"]    = _save_parquet(customers_df,    "customers")
-    paths["accounts"]     = _save_parquet(accounts_df,     "accounts")
-    paths["merchants"]    = _save_parquet(merchants_df,    "merchants")
-    paths["transactions"] = _save_parquet(transactions_df, "transactions")
+    paths["customers"]           = _save_parquet(customers_df,    "customers")
+    paths["accounts"]            = _save_parquet(accounts_df,     "accounts")
+    paths["merchants"]           = _save_parquet(merchants_df,    "merchants")
+    paths["transactions"]        = _save_parquet(transactions_df, "transactions")
+    paths["transaction_details"] = _save_parquet(details_df,      "transaction_details")
+    paths["transaction_status"]  = _save_parquet(status_df,       "transaction_status")
 
     return paths
