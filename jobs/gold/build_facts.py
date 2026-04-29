@@ -13,6 +13,11 @@ Fact tables produced:
       Measures: transaction_amount, fee_amount (estimated 1.5%)
       Flags   : is_declined, is_foreign_currency
 
+  - data/gold/fact_transaction_detail
+      Grain : 1 row per transaction line item
+      Keys  : account_key, merchant_key, transaction_date_key (via fact_transaction join)
+      Measures: quantity, unit_amount, fee_amount, line_net_amount
+
   - data/gold/fact_auth_attempt
       Grain : 1 row per login/auth event
       Keys  : account_key
@@ -172,6 +177,66 @@ def build_fact_auth_attempt(spark: SparkSession) -> str:
     return dst_path
 
 
+# ── fact_transaction_detail ─────────────────────────────────────────────────────
+
+def build_fact_transaction_detail(spark: SparkSession) -> str:
+    """
+    Build fact_transaction_detail from silver/transaction_details.
+
+    Grain  : one row per transaction line item (detail_id).
+    Keys   : account_key, merchant_key, transaction_date_key are resolved
+             by joining with Gold fact_transaction on transaction_id so we
+             reuse already-resolved surrogate keys (avoids duplicate lookups).
+    Dedup  : Silver already removed the ~2% source duplicates (by detail_id).
+    Measures:
+      - quantity        : int
+      - unit_amount     : double (per-unit price)
+      - fee_amount      : double (per-line processing fee)
+      - line_net_amount : quantity * unit_amount  (derived measure)
+    """
+    dst_path = os.path.join(GOLD_DIR, "fact_transaction_detail")
+    log.info("[GOLD] Building fact_transaction_detail …")
+
+    silver_details = spark.read.format("delta").load(
+        os.path.join(SILVER_DIR, "transaction_details")
+    )
+    # Re-use surrogate keys already resolved in fact_transaction
+    gold_tx = spark.read.format("delta").load(
+        os.path.join(GOLD_DIR, "fact_transaction")
+    ).select(
+        "transaction_id",
+        "account_key",
+        "merchant_key",
+        F.col("date_key").alias("transaction_date_key"),
+        "transaction_timestamp",
+    )
+
+    df = silver_details.join(gold_tx, on="transaction_id", how="left")
+
+    # Compute derived measure
+    df = df.withColumn(
+        "line_net_amount",
+        F.round(F.col("quantity").cast("double") * F.col("unit_amount"), 2),
+    )
+
+    df = df.select(
+        "detail_id",
+        "transaction_id",
+        "account_key",
+        "merchant_key",
+        "transaction_date_key",
+        "transaction_timestamp",
+        "quantity",
+        "unit_amount",
+        "fee_amount",
+        "line_net_amount",
+    )
+    df = _gold_metadata(df)
+
+    _upsert_gold(spark, df, "detail_id", dst_path)
+    return dst_path
+
+
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 def run(spark: SparkSession | None = None) -> dict[str, str]:
@@ -182,8 +247,9 @@ def run(spark: SparkSession | None = None) -> dict[str, str]:
 
     try:
         paths = {
-            "fact_transaction":   build_fact_transaction(spark),
-            "fact_auth_attempt":  build_fact_auth_attempt(spark),
+            "fact_transaction":        build_fact_transaction(spark),
+            "fact_auth_attempt":       build_fact_auth_attempt(spark),
+            "fact_transaction_detail": build_fact_transaction_detail(spark),
         }
         log.info("[GOLD] Fact build complete.")
         return paths

@@ -13,10 +13,11 @@ Gold dimension tables produced:
   - data/gold/dim_date        (static date spine)
 
 Schema follows finance schema design:
-  dim_customer : customer_key (surrogate), customer_id, risk_segment, ...
-  dim_account  : account_key  (surrogate), account_id, credit_limit, ...
-  dim_merchant : merchant_key (surrogate), merchant_id, category_code, ...
-  dim_date     : date_key (INT YYYYMMDD), calendar_date, year, quarter, ...
+  dim_customer          : customer_key (surrogate), customer_id, risk_segment, ...
+  dim_account           : account_key  (surrogate), account_id, credit_limit, ...
+  dim_merchant          : merchant_key (surrogate), merchant_id, category_code, ...
+  dim_date              : date_key (INT YYYYMMDD), calendar_date, year, quarter, ...
+  dim_transaction_status: transaction_status_key (surrogate), status_id, status_name
 """
 from __future__ import annotations
 
@@ -197,6 +198,34 @@ def build_dim_date(spark: SparkSession, start: str = "2020-01-01", end: str = "2
     return dst_path
 
 
+# ── dim_transaction_status ─────────────────────────────────────────────────────────
+
+def build_dim_transaction_status(spark: SparkSession) -> str:
+    """
+    Build dim_transaction_status from silver/transaction_status.
+
+    Grain    : one row per transaction status code (approved / declined / pending).
+    SK       : transaction_status_key  – SHA-256 hash of status_id.
+    BK       : status_id (the raw string code).
+    Strategy : SCD Type 1 (static lookup; codes do not change).
+    """
+    dst_path = os.path.join(GOLD_DIR, "dim_transaction_status")
+    log.info("[GOLD] Building dim_transaction_status …")
+
+    df = spark.read.format("delta").load(os.path.join(SILVER_DIR, "transaction_status"))
+
+    df = _add_surrogate_key(df, "status_id", "transaction_status_key")
+    df = df.select(
+        "transaction_status_key",
+        F.col("status_id").alias("transaction_status"),  # BK – name per schema design
+        "status_name",
+    )
+    df = _gold_metadata(df)
+
+    _upsert_gold(spark, df, "transaction_status_key", dst_path)
+    return dst_path
+
+
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 def run(spark: SparkSession | None = None) -> dict[str, str]:
@@ -207,10 +236,11 @@ def run(spark: SparkSession | None = None) -> dict[str, str]:
 
     try:
         paths = {}
-        paths["dim_customer"] = build_dim_customer(spark)
-        paths["dim_date"]     = build_dim_date(spark)
-        paths["dim_account"]  = build_dim_account(spark)   # needs dim_customer first
-        paths["dim_merchant"] = build_dim_merchant(spark)
+        paths["dim_customer"]          = build_dim_customer(spark)
+        paths["dim_date"]              = build_dim_date(spark)
+        paths["dim_account"]           = build_dim_account(spark)   # needs dim_customer first
+        paths["dim_merchant"]          = build_dim_merchant(spark)
+        paths["dim_transaction_status"] = build_dim_transaction_status(spark)
 
         log.info("[GOLD] Dimension build complete.")
         return paths

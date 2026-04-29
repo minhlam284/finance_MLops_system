@@ -12,6 +12,7 @@ Applies:
 Silver tables produced:
   - data/silver/transactions
   - data/silver/events
+  - data/silver/transaction_details
 """
 from __future__ import annotations
 
@@ -140,6 +141,40 @@ def process_events(spark: SparkSession) -> str:
     return dst_path
 
 
+# ── Transaction Details ─────────────────────────────────────────────────────────
+
+def process_transaction_details(spark: SparkSession) -> str:
+    """
+    Bronze → Silver for the transaction_details fact table.
+
+    Dedup key: detail_id  (removes the ~2% duplicates injected at the source
+    data generator as per schema design Section 3.2).
+    """
+    src_path = os.path.join(BRONZE_DIR, "transaction_details")
+    dst_path = os.path.join(SILVER_DIR, "transaction_details")
+
+    log.info("[SILVER] Processing transaction_details …")
+    df = spark.read.format("delta").load(src_path)
+
+    # Validate mandatory fields
+    df = df.filter(
+        F.col("detail_id").isNotNull() &
+        F.col("transaction_id").isNotNull()
+    )
+
+    # Cast numeric measures to canonical types
+    df = df.withColumn("unit_amount", F.col("unit_amount").cast("double"))
+    df = df.withColumn("fee_amount",  F.col("fee_amount").cast("double"))
+    df = df.withColumn("quantity",    F.col("quantity").cast("int"))
+
+    # Dedup by detail_id – keeps latest ingest; removes source duplicates
+    df = _dedup_by_key(df, "detail_id")
+    df = _add_silver_metadata(df)
+
+    _incremental_append(spark, df, "detail_id", dst_path)
+    return dst_path
+
+
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 def run(spark: SparkSession | None = None) -> dict[str, str]:
@@ -150,8 +185,9 @@ def run(spark: SparkSession | None = None) -> dict[str, str]:
 
     try:
         paths = {
-            "transactions": process_transactions(spark),
-            "events":       process_events(spark),
+            "transactions":         process_transactions(spark),
+            "events":               process_events(spark),
+            "transaction_details":  process_transaction_details(spark),
         }
         log.info("[SILVER] Fact processing complete.")
         return paths

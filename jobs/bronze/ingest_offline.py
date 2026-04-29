@@ -11,6 +11,8 @@ Tables processed:
   - accounts
   - merchants
   - transactions
+  - transaction_details
+  - transaction_status
 
 Data-quality metadata columns added:
   - _ingestion_ts  : timestamp when the row was ingested
@@ -34,7 +36,14 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fil
 OFFLINE_INPUT_DIR  = os.path.join(BASE_DIR, "output", "offline")
 BRONZE_OUTPUT_DIR  = os.path.join(BASE_DIR, "data", "bronze")
 
-TABLES = ["customers", "accounts", "merchants", "transactions"]
+TABLES = [
+    "customers",
+    "accounts",
+    "merchants",
+    "transactions",
+    "transaction_details",   # fact: line items with 2% duplicate rate from source
+    "transaction_status",    # dim: static lookup (approved / declined / pending)
+]
 
 
 # ── Core helpers ──────────────────────────────────────────────────────────────

@@ -18,6 +18,7 @@ Silver tables produced:
   - data/silver/customers
   - data/silver/accounts
   - data/silver/merchants
+  - data/silver/transaction_status
 """
 from __future__ import annotations
 
@@ -57,6 +58,11 @@ DIM_CONFIG = {
         "mandatory_cols": ["merchant_id"],
         "string_cols":    ["merchant_name", "category_code", "country",
                            "city", "risk_tier"],
+    },
+    "transaction_status": {
+        "natural_key":    "status_id",
+        "mandatory_cols": ["status_id", "status_name"],
+        "string_cols":    ["status_id", "status_name"],
     },
 }
 
