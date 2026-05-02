@@ -3,8 +3,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from jobs.ml.constants import BLOCK_THRESHOLD, FEATURE_COLS
-from jobs.ml.inference_contract import build_predictions, parse_instances_payload
+from finance_mlops.pipelines.training.constants import BLOCK_THRESHOLD, FEATURE_COLS
+from finance_mlops.pipelines.training.inference_contract import build_predictions, parse_instances_payload
 
 
 def test_parse_instances_payload_supports_dict_and_feature_order() -> None:

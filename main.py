@@ -1,5 +1,7 @@
 def main():
-    print("Hello from finance-mlops-system!")
+    from finance_mlops.data_generator.main import run
+
+    run()
 
 
 if __name__ == "__main__":

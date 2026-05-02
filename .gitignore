@@ -1,0 +1,8 @@
+artifacts/
+data/
+output/
+mlruns/
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/

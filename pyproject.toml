@@ -25,5 +25,9 @@ dev = [
     "pytest-timeout>=2.3.0",
 ]
 
+[tool.setuptools]
+package-dir = {"" = "src"}
+
 [tool.setuptools.packages.find]
-include = ["data_generator*", "jobs*", "dags*"]
+where = ["src"]
+include = ["finance_mlops*"]

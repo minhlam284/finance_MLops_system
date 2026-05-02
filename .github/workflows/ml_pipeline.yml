@@ -6,7 +6,7 @@
 # Track B: Smoke-test model training with tiny synthetic data
 #
 # Triggers:
-#   - Push / PR to main / develop on paths: jobs/ml/**, jobs/serving/**, jobs/kserve/**, k8s/**
+#   - Push / PR to main / develop on paths: src/finance_mlops/pipelines/training/**, src/finance_mlops/pipelines/inference/batch_streaming/**, src/finance_mlops/pipelines/inference/online_kserve/**, deploy/k8s/**
 #   - Manual dispatch (workflow_dispatch)
 
 name: ML Pipeline CI
@@ -15,24 +15,24 @@ on:
   push:
     branches: [main, develop]
     paths:
-      - "jobs/ml/**"
-      - "jobs/serving/**"
-      - "jobs/features/**"
-      - "jobs/kserve/**"
-      - "dags/**"
-      - "k8s/kserve/**"
-      - "docker/kserve-predictor.Dockerfile"
+      - "src/finance_mlops/pipelines/training/**"
+      - "src/finance_mlops/pipelines/inference/batch_streaming/**"
+      - "src/finance_mlops/pipelines/lakehouse/features/**"
+      - "src/finance_mlops/pipelines/inference/online_kserve/**"
+      - "orchestration/airflow/dags/**"
+      - "deploy/k8s/kserve/**"
+      - "deploy/docker/kserve-predictor.Dockerfile"
       - "pyproject.toml"
   pull_request:
     branches: [main, develop]
     paths:
-      - "jobs/ml/**"
-      - "jobs/serving/**"
-      - "jobs/features/**"
-      - "jobs/kserve/**"
-      - "dags/**"
-      - "k8s/kserve/**"
-      - "docker/kserve-predictor.Dockerfile"
+      - "src/finance_mlops/pipelines/training/**"
+      - "src/finance_mlops/pipelines/inference/batch_streaming/**"
+      - "src/finance_mlops/pipelines/lakehouse/features/**"
+      - "src/finance_mlops/pipelines/inference/online_kserve/**"
+      - "orchestration/airflow/dags/**"
+      - "deploy/k8s/kserve/**"
+      - "deploy/docker/kserve-predictor.Dockerfile"
       - "pyproject.toml"
   workflow_dispatch:
 
@@ -59,7 +59,7 @@ jobs:
 
       - name: Lint ML jobs
         run: |
-          ruff check jobs/ml/ jobs/serving/ jobs/features/ jobs/kserve/ dags/ \
+          ruff check src/finance_mlops/pipelines/training/ src/finance_mlops/pipelines/inference/batch_streaming/ src/finance_mlops/pipelines/lakehouse/features/ src/finance_mlops/pipelines/inference/online_kserve/ orchestration/airflow/dags/ \
             --select E,W,F,I \
             --ignore E501
 
@@ -80,13 +80,13 @@ jobs:
 
       - name: Validate predictor modules compile
         run: |
-          python -m py_compile jobs/ml/export_model_for_serving_job.py jobs/kserve/predictor.py
+          python -m py_compile src/finance_mlops/pipelines/training/export_model_for_serving_job.py src/finance_mlops/pipelines/inference/online_kserve/predictor.py
 
       - name: Set up kubectl
         uses: azure/setup-kubectl@v4
 
       - name: Validate KServe kustomize output
-        run: kubectl kustomize k8s/kserve/overlays/dev > /tmp/kserve-dev.yaml
+        run: kubectl kustomize deploy/k8s/kserve/overlays/dev > /tmp/kserve-dev.yaml
 
   # ── Track A-2: DAG validation ────────────────────────────────────────────────
   dag-validation:
@@ -108,10 +108,10 @@ jobs:
 
       - name: Check DAG imports
         run: |
-          python -c "import dags.finance_lakehouse_dag; print('finance_lakehouse_dag: OK')"
-          python -c "import dags.finance_ml_training_dag; print('finance_ml_training_dag: OK')"
+          python -c "import orchestration.airflow.dags.finance_lakehouse_dag; print('finance_lakehouse_dag: OK')"
+          python -c "import orchestration.airflow.dags.finance_ml_training_dag; print('finance_ml_training_dag: OK')"
         env:
-          PYTHONPATH: ${{ github.workspace }}
+          PYTHONPATH: ${{ github.workspace }}/src
 
   # ── Track A-3: Unit tests ────────────────────────────────────────────────────
   unit-tests:
@@ -142,7 +142,7 @@ jobs:
       - name: Run unit tests
         run: pytest tests/ -v --timeout=120
         env:
-          PYTHONPATH: ${{ github.workspace }}
+          PYTHONPATH: ${{ github.workspace }}/src
           JAVA_HOME: ${{ env.JAVA_HOME }}
 
   # ── Track B: Smoke-test training (tiny data) ─────────────────────────────────
@@ -173,23 +173,23 @@ jobs:
         run: uv pip install -e ".[dev]" --system
 
       - name: Generate synthetic data
-        run: python main.py
+        run: python -m finance_mlops.data_generator.main
         env:
-          PYTHONPATH: ${{ github.workspace }}
+          PYTHONPATH: ${{ github.workspace }}/src
 
       - name: Run full lakehouse pipeline (Bronze → Gold → Features → ML tables)
         run: |
           python -c "
-          from jobs.utils.spark import get_spark
-          from jobs.bronze.ingest_offline   import run as bronze_offline
-          from jobs.bronze.ingest_streaming import run as bronze_streaming
-          from jobs.silver.process_dimensions import run as silver_dims
-          from jobs.silver.process_facts      import run as silver_facts
-          from jobs.gold.build_dimensions     import run as gold_dims
-          from jobs.gold.build_facts          import run as gold_facts
-          from jobs.gold.build_obt            import run as gold_obt
-          from jobs.features.build_features   import run as build_features
-          from jobs.gold.build_ml_tables      import run as build_ml
+          from finance_mlops.pipelines.common.utils.spark import get_spark
+          from finance_mlops.pipelines.lakehouse.bronze.ingest_offline import run as bronze_offline
+          from finance_mlops.pipelines.lakehouse.bronze.ingest_streaming import run as bronze_streaming
+          from finance_mlops.pipelines.lakehouse.silver.process_dimensions import run as silver_dims
+          from finance_mlops.pipelines.lakehouse.silver.process_facts import run as silver_facts
+          from finance_mlops.pipelines.lakehouse.gold.build_dimensions import run as gold_dims
+          from finance_mlops.pipelines.lakehouse.gold.build_facts import run as gold_facts
+          from finance_mlops.pipelines.lakehouse.gold.build_obt import run as gold_obt
+          from finance_mlops.pipelines.lakehouse.features.build_features import run as build_features
+          from finance_mlops.pipelines.lakehouse.gold.build_ml_tables import run as build_ml
           spark = get_spark('ci_smoke')
           bronze_offline(spark); bronze_streaming(spark)
           silver_dims(spark); silver_facts(spark)
@@ -199,18 +199,18 @@ jobs:
           print('Pipeline complete.')
           "
         env:
-          PYTHONPATH: ${{ github.workspace }}
+          PYTHONPATH: ${{ github.workspace }}/src
 
       - name: Smoke-test train_job.py
-        run: python -m jobs.ml.train_job
+        run: python -m finance_mlops.pipelines.training.train_job
         env:
-          PYTHONPATH: ${{ github.workspace }}
+          PYTHONPATH: ${{ github.workspace }}/src
 
       - name: Verify MLflow run created
         run: |
           python -c "
           import mlflow, os
-          mlflow.set_tracking_uri('file://' + os.path.join(os.getcwd(), 'mlruns'))
+          mlflow.set_tracking_uri('file://' + os.path.join(os.getcwd(), 'artifacts', 'mlruns'))
           mlflow.set_experiment('fraud_detection')
           runs = mlflow.search_runs(order_by=['attribute.start_time DESC'], max_results=1)
           assert len(runs) > 0, 'No MLflow run found!'
@@ -220,4 +220,4 @@ jobs:
           print('Smoke test PASSED.')
           "
         env:
-          PYTHONPATH: ${{ github.workspace }}
+          PYTHONPATH: ${{ github.workspace }}/src
