@@ -33,7 +33,7 @@ from datetime import timedelta
 
 from airflow import DAG
 from airflow.operators.python import PythonOperator
-from airflow.utils.dates import days_ago
+import pendulum
 
 # ── Default DAG arguments ─────────────────────────────────────────────────────
 DEFAULT_ARGS = {
@@ -50,8 +50,8 @@ with DAG(
     dag_id="finance_lakehouse_pipeline",
     description="Medallion Architecture: Bronze → Silver → Gold → Features",
     default_args=DEFAULT_ARGS,
-    schedule_interval="*/30 * * * *",   # every 30 minutes
-    start_date=days_ago(1),
+    schedule="*/30 * * * *",            # every 30 minutes
+    start_date=pendulum.datetime(2024, 1, 1, tz="UTC"),
     catchup=False,
     max_active_runs=1,
     tags=["finance", "lakehouse", "delta", "pyspark"],
@@ -62,7 +62,7 @@ with DAG(
         """Re-generate source data if not yet present."""
         import os
         import sys
-        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        project_root = os.getenv("FINANCE_LAKEHOUSE_HOME", "/Users/kaiser_1/Documents/FSDS/TA/finance_MLops_system")
         sys.path.insert(0, project_root)
 
         offline_path   = os.path.join(project_root, "output", "offline", "transactions.parquet")
@@ -83,7 +83,7 @@ with DAG(
     def _bronze_offline(**ctx):
         import os
         import sys
-        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        sys.path.insert(0, os.getenv("FINANCE_LAKEHOUSE_HOME", "/Users/kaiser_1/Documents/FSDS/TA/finance_MLops_system"))
         from jobs.bronze.ingest_offline import run
         from jobs.utils.spark import get_spark
         spark = get_spark("bronze_offline_ingest")
@@ -103,7 +103,7 @@ with DAG(
     def _bronze_streaming(**ctx):
         import os
         import sys
-        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        sys.path.insert(0, os.getenv("FINANCE_LAKEHOUSE_HOME", "/Users/kaiser_1/Documents/FSDS/TA/finance_MLops_system"))
         from jobs.bronze.ingest_streaming import run
         from jobs.utils.spark import get_spark
         spark = get_spark("bronze_streaming_ingest")
@@ -123,7 +123,7 @@ with DAG(
     def _silver_dims(**ctx):
         import os
         import sys
-        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        sys.path.insert(0, os.getenv("FINANCE_LAKEHOUSE_HOME", "/Users/kaiser_1/Documents/FSDS/TA/finance_MLops_system"))
         from jobs.silver.process_dimensions import run
         from jobs.utils.spark import get_spark
         spark = get_spark("silver_process_dimensions")
@@ -143,7 +143,7 @@ with DAG(
     def _silver_facts(**ctx):
         import os
         import sys
-        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        sys.path.insert(0, os.getenv("FINANCE_LAKEHOUSE_HOME", "/Users/kaiser_1/Documents/FSDS/TA/finance_MLops_system"))
         from jobs.silver.process_facts import run
         from jobs.utils.spark import get_spark
         spark = get_spark("silver_process_facts")
@@ -163,7 +163,7 @@ with DAG(
     def _gold_dims(**ctx):
         import os
         import sys
-        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        sys.path.insert(0, os.getenv("FINANCE_LAKEHOUSE_HOME", "/Users/kaiser_1/Documents/FSDS/TA/finance_MLops_system"))
         from jobs.gold.build_dimensions import run
         from jobs.utils.spark import get_spark
         spark = get_spark("gold_build_dimensions")
@@ -183,7 +183,7 @@ with DAG(
     def _gold_facts(**ctx):
         import os
         import sys
-        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        sys.path.insert(0, os.getenv("FINANCE_LAKEHOUSE_HOME", "/Users/kaiser_1/Documents/FSDS/TA/finance_MLops_system"))
         from jobs.gold.build_facts import run
         from jobs.utils.spark import get_spark
         spark = get_spark("gold_build_facts")
@@ -203,7 +203,7 @@ with DAG(
     def _gold_obt(**ctx):
         import os
         import sys
-        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        sys.path.insert(0, os.getenv("FINANCE_LAKEHOUSE_HOME", "/Users/kaiser_1/Documents/FSDS/TA/finance_MLops_system"))
         from jobs.gold.build_obt import run
         from jobs.utils.spark import get_spark
         spark = get_spark("gold_build_obt")
@@ -223,7 +223,7 @@ with DAG(
     def _build_features(**ctx):
         import os
         import sys
-        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        sys.path.insert(0, os.getenv("FINANCE_LAKEHOUSE_HOME", "/Users/kaiser_1/Documents/FSDS/TA/finance_MLops_system"))
         from jobs.features.build_features import run
         from jobs.utils.spark import get_spark
         spark = get_spark("feature_store_build")

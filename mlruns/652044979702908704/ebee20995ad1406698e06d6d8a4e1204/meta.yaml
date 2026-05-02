@@ -1,0 +1,14 @@
+artifact_uri: file:///Users/kaiser_1/Documents/FSDS/TA/finance_MLops_system/mlruns/652044979702908704/ebee20995ad1406698e06d6d8a4e1204/artifacts
+end_time: 1777454308518
+entry_point_name: ''
+experiment_id: '652044979702908704'
+lifecycle_stage: active
+run_id: ebee20995ad1406698e06d6d8a4e1204
+run_name: xgboost_20260429_091827
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1777454307790
+status: 3
+tags: []
+user_id: kaiser284

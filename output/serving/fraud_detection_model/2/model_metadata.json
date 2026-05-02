@@ -1,0 +1,17 @@
+{
+  "exported_at": "2026-05-02T03:52:38.830697+00:00",
+  "model_name": "fraud_detection_model",
+  "model_version": "2",
+  "run_id": "f2bdc23018c840d580fe93c64ded0fd4",
+  "model_uri": "models:/fraud_detection_model/Production",
+  "block_threshold": 0.6,
+  "feature_count": 8,
+  "metrics": {
+    "fraud_ratio": 0.5904140069305125,
+    "val_precision": 0.9904774232520009,
+    "val_rows": 548300.0,
+    "train_rows": 2193200.0,
+    "val_pr_auc": 0.9939350174409467,
+    "val_recall": 0.9904389620923831
+  }
+}

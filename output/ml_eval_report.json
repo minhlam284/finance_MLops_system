@@ -1,0 +1,18 @@
+{
+  "evaluated_at": "2026-04-29T17:58:59.059899+00:00",
+  "run_id": "f2bdc23018c840d580fe93c64ded0fd4",
+  "experiment": "fraud_detection",
+  "model_name": "fraud_detection_model",
+  "metrics": {
+    "fraud_ratio": 0.5904140069305125,
+    "val_precision": 0.9904774232520009,
+    "val_rows": 548300.0,
+    "train_rows": 2193200.0,
+    "val_pr_auc": 0.9939350174409467,
+    "val_recall": 0.9904389620923831
+  },
+  "prauc_threshold": 0.3,
+  "latency_sla_ms": 200,
+  "passed_threshold": true,
+  "promoted_to_production": true
+}

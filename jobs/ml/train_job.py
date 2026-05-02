@@ -35,6 +35,14 @@ from sklearn.metrics import (
 )
 from xgboost import XGBClassifier
 
+from jobs.ml.constants import (
+    EXPERIMENT_NAME,
+    FEATURE_COLS,
+    LABEL_COL,
+    MIN_PRAUC_THRESHOLD,
+    MODEL_NAME,
+    TIME_COL,
+)
 from jobs.utils.spark import get_spark
 
 log = logging.getLogger(__name__)
@@ -42,23 +50,6 @@ log = logging.getLogger(__name__)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 GOLD_DIR = os.path.join(BASE_DIR, "data", "gold")
 MLRUNS_DIR = os.path.join(BASE_DIR, "mlruns")
-
-EXPERIMENT_NAME = "fraud_detection"
-MODEL_NAME      = "fraud_detection_model"
-
-# Feature columns expected in the training table
-FEATURE_COLS = [
-    "f_account_total_tx_90d",
-    "f_account_avg_tx_value_90d",
-    "f_account_max_tx_value_90d",
-    "f_account_declined_ratio_90d",
-    "f_account_foreign_tx_ratio_90d",
-    "f_stream_tx_velocity_60m",
-    "f_stream_unique_devices_60m",
-    "f_stream_login_failures_30m",
-]
-LABEL_COL = "label"
-TIME_COL  = "event_timestamp"
 
 # Validation set: last N% of rows sorted by time
 VALIDATION_RATIO = 0.20
@@ -76,10 +67,6 @@ XGBOOST_PARAMS: dict = {
     "n_jobs":           -1,
     "tree_method":      "hist",
 }
-
-# Minimum PR-AUC required to proceed to model registry
-MIN_PRAUC_THRESHOLD = 0.30
-
 
 # ── Data loading ───────────────────────────────────────────────────────────────
 

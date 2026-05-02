@@ -1,0 +1,8 @@
+artifact_location: file:///Users/kaiser_1/Documents/FSDS/TA/finance_MLops_system/mlruns/652044979702908704
+creation_time: 1777454307672
+experiment_id: '652044979702908704'
+last_update_time: 1777454307672
+lifecycle_stage: active
+name: fraud_detection
+trace_location: null
+workspace: default

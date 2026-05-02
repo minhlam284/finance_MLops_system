@@ -10,6 +10,8 @@ Orchestrates the batch retraining workflow for the fraud detection model:
   [Train Model]      ← XGBoost training + MLflow experiment logging
         ↓
   [Evaluate & Register]  ← promote best model to Production in registry
+        ↓
+  [Export Serving Artifacts] ← export Production model bundle for KServe
 
 Schedule  : Weekly (Sunday midnight) by default.
              Can be triggered manually via Airflow UI or when data drift
@@ -27,7 +29,9 @@ from datetime import timedelta
 
 from airflow import DAG
 from airflow.operators.python import PythonOperator, ShortCircuitOperator
-from airflow.utils.dates import days_ago
+# from airflow.utils.dates import days_ago
+import pendulum
+
 
 # ── Default args ──────────────────────────────────────────────────────────────
 DEFAULT_ARGS = {
@@ -43,7 +47,7 @@ DEFAULT_ARGS = {
 # ── Helper: project root ───────────────────────────────────────────────────────
 def _project_root() -> str:
     import os
-    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return os.getenv("FINANCE_LAKEHOUSE_HOME", "/Users/kaiser_1/Documents/FSDS/TA/finance_MLops_system")
 
 
 # ── DAG ───────────────────────────────────────────────────────────────────────
@@ -51,8 +55,8 @@ with DAG(
     dag_id="finance_ml_training_pipeline",
     description="Fraud Detection ML: build tables → train → evaluate → register",
     default_args=DEFAULT_ARGS,
-    schedule_interval="0 0 * * 0",   # Weekly, Sunday at midnight
-    start_date=days_ago(1),
+    schedule="0 0 * * 0",               # Weekly, Sunday at midnight
+    start_date=pendulum.datetime(2024, 1, 1, tz="UTC"),
     catchup=False,
     max_active_runs=1,
     tags=["finance", "ml", "fraud", "xgboost", "mlflow"],
@@ -147,6 +151,35 @@ with DAG(
         execution_timeout=timedelta(minutes=10),
     )
 
+    # ── Task 4: Export model artifacts for online serving ───────────────────────
+    def _check_promoted(**ctx) -> bool:
+        promoted = ctx["ti"].xcom_pull(task_ids="evaluate_and_register", key="return_value")
+        status = bool(promoted and promoted.get("promoted_to_production"))
+        print(f"  Export gate — promoted_to_production={status}")
+        return status
+
+    task_export_gate = ShortCircuitOperator(
+        task_id="check_promoted_for_export",
+        python_callable=_check_promoted,
+    )
+
+    def _export_serving_artifacts(**ctx):
+        import sys
+        sys.path.insert(0, _project_root())
+        from jobs.ml.export_model_for_serving_job import run
+
+        result = run()
+        print(f"  model_version    : {result['model_version']}")
+        print(f"  local_export_dir : {result['local_export_dir']}")
+        print(f"  remote_uri       : {result.get('remote_uri')}")
+        return result
+
+    task_export_model = PythonOperator(
+        task_id="export_model_for_serving",
+        python_callable=_export_serving_artifacts,
+        execution_timeout=timedelta(minutes=10),
+    )
+
     # ── Dependency graph ───────────────────────────────────────────────────────
     #
     #   build_ml_tables
@@ -156,5 +189,9 @@ with DAG(
     #   check_prauc_gate  ──(short-circuit if FAIL)──►  [end]
     #         │ (PASS)
     #   evaluate_and_register
+    #         │
+    #   check_promoted_for_export ──(short-circuit if NOT promoted)──► [end]
+    #         │
+    #   export_model_for_serving
 
-    task_build_ml_tables >> task_train >> task_gate >> task_evaluate
+    task_build_ml_tables >> task_train >> task_gate >> task_evaluate >> task_export_gate >> task_export_model

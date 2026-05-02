@@ -49,6 +49,35 @@ def _print_summary(offline_paths: dict, stream_path: str | None) -> None:
     print(f"\n{separator}\n")
 
 
+def run(streaming_only: bool = False, offline_only: bool = False) -> tuple[dict, str | None]:
+    t0 = time.perf_counter()
+    log = logging.getLogger(__name__)
+    offline_paths: dict  = {}
+    stream_path: str | None = None
+
+    # ── Offline ─────────────────────────────────────────────────────────────
+    if not streaming_only:
+        offline_paths = offline_generator.run()
+
+    # ── Streaming ───────────────────────────────────────────────────────────
+    if not offline_only:
+        # Reuse account IDs from the offline dataset when available,
+        # otherwise generate placeholder IDs.
+        if offline_paths.get("accounts"):
+            accounts_df = pd.read_parquet(offline_paths["accounts"])
+            account_ids = accounts_df["account_id"].tolist()
+        else:
+            import uuid
+            account_ids = [str(uuid.uuid4()) for _ in range(1_000)]
+
+        stream_path = streaming_generator.run(account_ids)
+
+    elapsed = time.perf_counter() - t0
+    log.info("All done in %.1f s", elapsed)
+    _print_summary(offline_paths, stream_path)
+    return offline_paths, stream_path
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Finance Data Generator")
     mode_group = parser.add_mutually_exclusive_group()
@@ -72,10 +101,6 @@ def main() -> None:
 
     _setup_logging()
     log = logging.getLogger(__name__)
-    t0 = time.perf_counter()
-
-    offline_paths: dict  = {}
-    stream_path: str | None = None
 
     # ── Report-only mode (no data generation) ───────────────────────────────
     if args.report_only:
@@ -91,26 +116,7 @@ def main() -> None:
         quality_report.run(offline_paths, stream_path)
         return
 
-    # ── Offline ─────────────────────────────────────────────────────────────
-    if not args.streaming_only:
-        offline_paths = offline_generator.run()
-
-    # ── Streaming ───────────────────────────────────────────────────────────
-    if not args.offline_only:
-        # Reuse account IDs from the offline dataset when available,
-        # otherwise generate placeholder IDs.
-        if offline_paths.get("accounts"):
-            accounts_df = pd.read_parquet(offline_paths["accounts"])
-            account_ids = accounts_df["account_id"].tolist()
-        else:
-            import uuid
-            account_ids = [str(uuid.uuid4()) for _ in range(1_000)]
-
-        stream_path = streaming_generator.run(account_ids)
-
-    elapsed = time.perf_counter() - t0
-    log.info("All done in %.1f s", elapsed)
-    _print_summary(offline_paths, stream_path)
+    offline_paths, stream_path = run(streaming_only=args.streaming_only, offline_only=args.offline_only)
 
     # ── Optional quality report ──────────────────────────────────────────────
     if args.report:

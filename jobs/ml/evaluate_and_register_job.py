@@ -26,6 +26,8 @@ from typing import Any
 import mlflow
 from mlflow.tracking import MlflowClient
 
+from jobs.ml.constants import EXPERIMENT_NAME, MIN_PRAUC_THRESHOLD, MODEL_NAME
+
 log = logging.getLogger(__name__)
 
 BASE_DIR  = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -33,9 +35,6 @@ MLRUNS_DIR = os.path.join(BASE_DIR, "mlruns")
 OUTPUT_DIR = os.path.join(BASE_DIR, "output")
 REPORT_PATH = os.path.join(OUTPUT_DIR, "ml_eval_report.json")
 
-EXPERIMENT_NAME     = "fraud_detection"
-MODEL_NAME          = "fraud_detection_model"
-MIN_PRAUC_THRESHOLD = 0.30
 LATENCY_SLA_MS      = 200   # p95 online-inference SLA (documented; not measured here)
 
 
@@ -139,6 +138,7 @@ def run() -> dict:
     pr_auc  = metrics.get("val_pr_auc", 0.0)
     passed  = pr_auc >= MIN_PRAUC_THRESHOLD
     promoted = False
+    model_version = None
 
     log.info(
         "[EVAL] Latest run: %s | val_pr_auc=%.4f | gate (%s): %s",
@@ -155,6 +155,7 @@ def run() -> dict:
         else:
             _promote_to_production(client, model_version_obj.version)
             promoted = True
+            model_version = str(model_version_obj.version)
     else:
         log.warning(
             "[EVAL] Model did NOT pass the PR-AUC gate (%.4f < %.2f). "
@@ -169,6 +170,7 @@ def run() -> dict:
         "metrics":                 metrics,
         "passed_threshold":        passed,
         "promoted_to_production":  promoted,
+        "model_version":           model_version,
     }
 
 

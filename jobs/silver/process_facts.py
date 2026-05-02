@@ -79,13 +79,14 @@ def _incremental_append(
                 incremental.write
                 .format("delta")
                 .mode("append")
+                .option("mergeSchema", "true")
                 .save(dst_path)
             )
             log.info("[SILVER] Appended %d new rows to %s", row_count, dst_path)
         else:
             log.info("[SILVER] No new rows for %s", dst_path)
     else:
-        new_df.write.format("delta").mode("overwrite").save(dst_path)
+        new_df.write.format("delta").mode("overwrite").option("mergeSchema", "true").save(dst_path)
         log.info("[SILVER] Created %s (%d rows)", dst_path, new_df.count())
 
 

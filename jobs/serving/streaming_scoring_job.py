@@ -44,6 +44,7 @@ from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
 from pyspark.sql.types import DoubleType
 
+from jobs.ml.constants import BLOCK_THRESHOLD, FEATURE_COLS, MODEL_NAME
 from jobs.utils.spark import get_spark
 
 log = logging.getLogger(__name__)
@@ -54,20 +55,6 @@ GOLD_FEATURES_PATH   = os.path.join(BASE_DIR, "data", "gold", "feat_account_unif
 GOLD_SCORES_PATH     = os.path.join(BASE_DIR, "data", "gold", "fraud_scores")
 CHECKPOINT_PATH      = os.path.join(BASE_DIR, "data", "_checkpoints", "fraud_scoring")
 MLRUNS_DIR           = os.path.join(BASE_DIR, "mlruns")
-
-MODEL_NAME       = "fraud_detection_model"
-BLOCK_THRESHOLD  = 0.60   # fraud_score >= this → is_blocked = True
-
-FEATURE_COLS = [
-    "f_account_total_tx_90d",
-    "f_account_avg_tx_value_90d",
-    "f_account_max_tx_value_90d",
-    "f_account_declined_ratio_90d",
-    "f_account_foreign_tx_ratio_90d",
-    "f_stream_tx_velocity_60m",
-    "f_stream_unique_devices_60m",
-    "f_stream_login_failures_30m",
-]
 
 # Default trigger: process new files as they arrive (micro-batch)
 DEFAULT_TRIGGER_INTERVAL = "30 seconds"

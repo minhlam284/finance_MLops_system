@@ -1,0 +1,16 @@
+creation_timestamp: 1777454308502
+current_stage: None
+deployment_job_state: null
+description: null
+last_updated_timestamp: 1777454308502
+model_id: m-435e2af7e0b6470a8422d322d00a7869
+name: fraud_detection_model
+run_id: ebee20995ad1406698e06d6d8a4e1204
+run_link: null
+source: models:/m-435e2af7e0b6470a8422d322d00a7869
+status: READY
+status_message: null
+storage_location: file:///Users/kaiser_1/Documents/FSDS/TA/finance_MLops_system/mlruns/652044979702908704/models/m-435e2af7e0b6470a8422d322d00a7869/artifacts
+user_id: null
+version: 1
+workspace: default

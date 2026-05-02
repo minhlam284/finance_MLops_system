@@ -103,6 +103,75 @@ airflow webserver --port 8080
 airflow dags trigger finance_lakehouse_pipeline
 ```
 
+## KServe Online Inference (Fraud Model)
+
+This repository now supports a KServe-style custom predictor for online fraud
+inference while keeping MLflow local tracking for training.
+
+### 1) Train and promote model
+
+Run the ML DAG or jobs below so `fraud_detection_model` has a `Production` stage:
+
+```bash
+python -m jobs.ml.train_job
+python -m jobs.ml.evaluate_and_register_job
+```
+
+### 2) Export serving artifacts
+
+```bash
+python -m jobs.ml.export_model_for_serving_job
+```
+
+Artifacts are written to:
+
+```text
+output/serving/fraud_detection_model/<version>/
+```
+
+Optional remote sync (MinIO/S3) via env vars:
+`MODEL_ARTIFACT_BUCKET`, `MODEL_ARTIFACT_PREFIX`, `AWS_ENDPOINT_URL`,
+`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`.
+
+### 3) Local smoke test for predictor
+
+```bash
+uvicorn jobs.kserve.predictor:app --host 0.0.0.0 --port 8080
+```
+
+Then call:
+
+```bash
+curl -X POST "http://localhost:8080/v1/models/fraud-detection:predict" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "instances": [
+      {
+        "f_account_total_tx_90d": 120.0,
+        "f_account_avg_tx_value_90d": 42.5,
+        "f_account_max_tx_value_90d": 420.0,
+        "f_account_declined_ratio_90d": 0.10,
+        "f_account_foreign_tx_ratio_90d": 0.05,
+        "f_stream_tx_velocity_60m": 3.0,
+        "f_stream_unique_devices_60m": 1.0,
+        "f_stream_login_failures_30m": 0.0
+      }
+    ]
+  }'
+```
+
+Expected response fields per prediction:
+`fraud_score`, `is_blocked`, `model_version`.
+
+### 4) KServe manifest smoke test
+
+```bash
+kubectl apply -k k8s/kserve/overlays/dev
+kubectl get inferenceservice -n ml-serving fraud-detection
+```
+
+Update image tag and storage env vars in `k8s/kserve/overlays/dev` before deploy.
+
 ## SLA Targets
 
 | Layer | Freshness Target |

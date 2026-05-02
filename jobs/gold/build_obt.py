@@ -72,7 +72,7 @@ def build_obt(spark: SparkSession) -> str:
         fact_tx
         # Enrich with account + customer
         .join(
-            dim_acct.select("account_key", "account_id", "account_type", "currency", "customer_key"),
+            dim_acct.select("account_key", "account_type", "customer_key"),
             on="account_key", how="left",
         )
         .join(

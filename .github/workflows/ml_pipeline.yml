@@ -6,7 +6,7 @@
 # Track B: Smoke-test model training with tiny synthetic data
 #
 # Triggers:
-#   - Push / PR to main / develop on paths: jobs/ml/**, jobs/serving/**, dags/**
+#   - Push / PR to main / develop on paths: jobs/ml/**, jobs/serving/**, jobs/kserve/**, k8s/**
 #   - Manual dispatch (workflow_dispatch)
 
 name: ML Pipeline CI
@@ -18,7 +18,10 @@ on:
       - "jobs/ml/**"
       - "jobs/serving/**"
       - "jobs/features/**"
+      - "jobs/kserve/**"
       - "dags/**"
+      - "k8s/kserve/**"
+      - "docker/kserve-predictor.Dockerfile"
       - "pyproject.toml"
   pull_request:
     branches: [main, develop]
@@ -26,7 +29,10 @@ on:
       - "jobs/ml/**"
       - "jobs/serving/**"
       - "jobs/features/**"
+      - "jobs/kserve/**"
       - "dags/**"
+      - "k8s/kserve/**"
+      - "docker/kserve-predictor.Dockerfile"
       - "pyproject.toml"
   workflow_dispatch:
 
@@ -53,15 +59,40 @@ jobs:
 
       - name: Lint ML jobs
         run: |
-          ruff check jobs/ml/ jobs/serving/ jobs/features/ dags/ \
+          ruff check jobs/ml/ jobs/serving/ jobs/features/ jobs/kserve/ dags/ \
             --select E,W,F,I \
             --ignore E501
+
+  kserve-assets:
+    name: "KServe assets validation"
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install project dependencies
+        run: pip install -e .
+
+      - name: Validate predictor modules compile
+        run: |
+          python -m py_compile jobs/ml/export_model_for_serving_job.py jobs/kserve/predictor.py
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Validate KServe kustomize output
+        run: kubectl kustomize k8s/kserve/overlays/dev > /tmp/kserve-dev.yaml
 
   # ── Track A-2: DAG validation ────────────────────────────────────────────────
   dag-validation:
     name: "Airflow DAG validation"
     runs-on: ubuntu-latest
-    needs: lint
+    needs: [lint, kserve-assets]
     steps:
       - uses: actions/checkout@v4
 
@@ -86,7 +117,7 @@ jobs:
   unit-tests:
     name: "Unit tests (pytest)"
     runs-on: ubuntu-latest
-    needs: lint
+    needs: [lint, kserve-assets]
 
     steps:
       - uses: actions/checkout@v4

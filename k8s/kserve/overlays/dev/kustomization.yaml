@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: ml-serving
+resources:
+  - ../../base
+
+images:
+  - name: minhlam284/finance-fraud-predictor
+    newTag: dev
+
+patches:
+  - target:
+      group: serving.kserve.io
+      version: v1beta1
+      kind: InferenceService
+      name: fraud-detection
+    patch: |
+      - op: replace
+        path: /spec/predictor/containers/0/env/0/value
+        value: s3://finance-ml-models-dev/fraud_detection_model/1

@@ -1,0 +1,10 @@
+artifact_location: file:///Users/kaiser_1/Documents/FSDS/TA/finance_MLops_system/mlruns/652044979702908704/models/m-435e2af7e0b6470a8422d322d00a7869/artifacts
+creation_timestamp: 1777454307806
+experiment_id: '652044979702908704'
+last_updated_timestamp: 1777454308493
+model_id: m-435e2af7e0b6470a8422d322d00a7869
+model_type: null
+name: model
+source_run_id: ebee20995ad1406698e06d6d8a4e1204
+status: 2
+status_message: null
