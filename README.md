@@ -80,5 +80,6 @@ Container image is built from `deploy/docker/kserve-predictor.Dockerfile`.
 ## Documentation
 
 - High-level architecture: `docs/high-level-design.md`
+- Low-level architecture: `docs/low-level-design.md`
 - Implementation walkthrough: `docs/walkthrough.md`
 - Detailed design notes: `docs/design/`
