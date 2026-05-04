@@ -1,5 +1,7 @@
 # Finance MLOps System
 
+![Finance MLOps System Architecture](docs/image.png)
+
 End-to-end fraud detection MLOps system with a Medallion lakehouse, ML training on MLflow, and online inference via KServe.
 
 ## Repository Layout
